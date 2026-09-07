@@ -1,7 +1,6 @@
 <?php
 /**
- * CIVentral Backend API Gateway
- * Health Check & Service Status
+ * CIVentral Citizen Verification Subsystem API Gateway
  */
 
 header("Access-Control-Allow-Origin: *");
@@ -15,25 +14,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 echo json_encode([
-    "status"  => "online",
-    "service" => "CIVentral Central REST API Gateway",
-    "version" => "1.0.0",
-    "endpoints" => [
-        "Citizen Auth" => [
-            "POST /api/citizen/check-account.php" => "Check account existence",
-            "POST /api/citizen/login.php"         => "Citizen login",
-            "POST /api/citizen/register.php"      => "Citizen registration",
-            "POST /api/citizen/verify-otp.php"    => "Verify email OTP",
-            "GET  /api/citizen/profile.php"       => "Get citizen profile"
+    "subsystem"   => "CIVentral Citizen Identity & Verification Subsystem",
+    "status"      => "online",
+    "version"     => "1.0.0",
+    "endpoints"   => [
+        "Mobile App (Citizen Verification)" => [
+            "POST /api/citizen/verify-citizen.php"      => "Submits citizen verification details, ID, and photos",
+            "GET  /api/citizen/verification-status.php" => "Checks if citizen is pending, approved, or rejected"
         ],
-        "Citizen Verification" => [
-            "POST /api/citizen/verify-citizen.php" => "Submit citizen ID & residency verification"
+        "Web Admin Side (Review & Approval)" => [
+            "GET  /api/admin/verifications.php"   => "Lists all verification submissions for Admin review",
+            "POST /api/admin/review-citizen.php"  => "Approves or Rejects a verification submission",
+            "GET  /api/admin/dashboard-stats.php" => "Dashboard counters for verified and pending citizens"
         ],
-        "Admin Management" => [
-            "GET  /api/admin/verifications.php"   => "List citizen verification submissions",
-            "POST /api/admin/review-citizen.php"  => "Approve or Reject verification",
-            "GET  /api/admin/dashboard-stats.php" => "Summary statistics for Admin Dashboard"
+        "Inter-Subsystem Shared API (For Other Groups)" => [
+            "GET  /api/external/check-verification.php" => "Allows other CIVentral subsystems to verify a citizen by ID"
         ]
     ],
-    "timestamp" => date('Y-m-d H:i:s')
+    "timestamp"   => date('Y-m-d H:i:s')
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
