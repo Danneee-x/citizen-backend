@@ -143,3 +143,50 @@ CREATE TABLE IF NOT EXISTS `certificate_payments` (
 CREATE TABLE IF NOT EXISTS `citizen_verification`.`certificate_requests` LIKE `civentral_certificates`.`certificate_requests`;
 CREATE TABLE IF NOT EXISTS `citizen_verification`.`issued_certificates` LIKE `civentral_certificates`.`issued_certificates`;
 CREATE TABLE IF NOT EXISTS `citizen_verification`.`certificate_payments` LIKE `civentral_certificates`.`certificate_payments`;
+-- ------------------------------------------------------------------------------
+-- 4. TABLE STRUCTURE: id_issuance_applications
+-- Subsystem Applications for Citizen, Barangay, Solo Parent, PWD, and Senior IDs
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `id_issuance_applications` (
+    `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `reference_no` VARCHAR(50) NOT NULL UNIQUE,
+    `citizen_user_id` INT UNSIGNED NULL,
+    `id_category` VARCHAR(50) NOT NULL,
+    `id_title` VARCHAR(150) NOT NULL,
+    `application_type` ENUM('New Application', 'Renewal', 'Replacement') NOT NULL DEFAULT 'New Application',
+    `first_name` VARCHAR(100) NOT NULL,
+    `middle_name` VARCHAR(100) NULL DEFAULT '',
+    `last_name` VARCHAR(100) NOT NULL,
+    `suffix` VARCHAR(20) NULL DEFAULT '',
+    `gender` VARCHAR(20) DEFAULT 'Male',
+    `birthdate` DATE NULL,
+    `civil_status` VARCHAR(50) DEFAULT 'Single',
+    `contact_number` VARCHAR(50) NOT NULL,
+    `email` VARCHAR(150) NULL,
+    `street_address` VARCHAR(255) NOT NULL,
+    `barangay` VARCHAR(100) NOT NULL,
+    `district` VARCHAR(50) DEFAULT 'District 1',
+    `resident_since` VARCHAR(50) DEFAULT '2015',
+    `issuing_bureau` VARCHAR(200) NOT NULL,
+    `primary_doc_name` VARCHAR(150) NULL,
+    `primary_doc_url` TEXT NULL,
+    `photo_2x2_url` TEXT NULL,
+    `support_doc_name` VARCHAR(150) NULL,
+    `support_doc_url` TEXT NULL,
+    `status` ENUM('Pending Review', 'Under Review', 'Approved', 'Ready for Release', 'Claimed', 'Rejected') NOT NULL DEFAULT 'Pending Review',
+    `claim_office` VARCHAR(200) NULL,
+    `estimated_turnaround` VARCHAR(100) NULL,
+    `review_notes` TEXT NULL,
+    `rejection_reason` TEXT NULL,
+    `reviewed_by` VARCHAR(100) NULL,
+    `reviewed_at` DATETIME NULL,
+    `released_by` VARCHAR(100) NULL,
+    `released_at` DATETIME NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX `idx_cat` (`id_category`),
+    INDEX `idx_stat` (`status`),
+    INDEX `idx_brgy` (`barangay`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `citizen_verification`.`id_issuance_applications` LIKE `civentral_certificates`.`id_issuance_applications`;
