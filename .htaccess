@@ -1,0 +1,12 @@
+<IfModule mod_rewrite.c>
+RewriteEngine On
+
+# Allow direct access to existing files and directories
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Fallback: rewrite /uploads/... to /assets/uploads/... if present
+RewriteRule ^uploads/verifications/(.*)$ assets/uploads/verifications/$1 [L]
+RewriteRule ^uploads/(.*)$ assets/uploads/$1 [L]
+</IfModule>
