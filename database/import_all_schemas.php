@@ -32,6 +32,7 @@ echo '<!DOCTYPE html>
 $sqlFiles = [
     'civentral_schema.sql'         => 'Core Civentral System & Grievance Schema',
     'citizen_verification.sql'     => 'Citizen Registry & Verification Schema',
+    'citizen_concerns.sql'         => 'Citizen Concerns & Gemini AI Triage Schema',
     'id_issuance.sql'              => 'Barangay ID Issuance Application Schema',
     'notifications_and_alerts.sql' => 'Broadcast Notifications & Alerts Schema',
     'public_consultations.sql'     => 'Public Consultations & Surveys Schema'
@@ -39,7 +40,7 @@ $sqlFiles = [
 
 try {
     $pdo = getDbConnection();
-    echo "<div class='ok'>[✓] Connected to MySQL database engine successfully.</div>";
+    echo "<div class='ok'>[âœ“] Connected to MySQL database engine successfully.</div>";
 
     $importedCount = 0;
 
@@ -87,7 +88,7 @@ try {
             }
         }
 
-        echo "<div class='ok'>&nbsp;&nbsp;→ [✓] {$fileName}: executed successfully ({$successCount} statements).</div>";
+        echo "<div class='ok'>&nbsp;&nbsp;â†’ [âœ“] {$fileName}: executed successfully ({$successCount} statements).</div>";
         $importedCount++;
     }
 
@@ -95,12 +96,12 @@ try {
     echo "<div style='margin-top: 16px; color: #38bdf8;'><strong>Current Tables in Database:</strong></div>";
     $tables = $pdo->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN);
     foreach ($tables as $t) {
-        echo "<div style='color: #a7f3d0;'>&nbsp;&nbsp;• {$t}</div>";
+        echo "<div style='color: #a7f3d0;'>&nbsp;&nbsp;â€¢ {$t}</div>";
     }
 
     echo "</div>
     <div style='margin-top: 20px; display: flex; align-items: center; justify-content: space-between;'>
-        <span class='badge badge-success'>✓ All Schemas Synced</span>
+        <span class='badge badge-success'>âœ“ All Schemas Synced</span>
         <span style='color: #94a3b8; font-size: 12px;'>Total Live Tables: " . count($tables) . "</span>
     </div>
 </div>
@@ -110,3 +111,4 @@ try {
 } catch (Exception $e) {
     echo "<div class='fail'>[FATAL ERROR] " . htmlspecialchars($e->getMessage()) . "</div></div></div></body></html>";
 }
+
