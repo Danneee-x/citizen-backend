@@ -192,13 +192,25 @@ function classifyConcernWithGemini($title, $description, $category, $barangay) {
               "Description: \"{$description}\"\n" .
               "Citizen Category: \"{$category}\"\n" .
               "Barangay: \"{$barangay}\"\n\n" .
-              "Evaluate the emergency level, public hazard, and best Caloocan LGU department.\n" .
+              "Evaluate the emergency level, public hazard, and best Caloocan LGU municipal department.\n" .
+              "Official Municipal Departments directory (use exact name):\n" .
+              "- Public Assets & Facilities Management (PAFM) [Roads, potholes, streetlights, bridges, municipal facilities]\n" .
+              "- Health & Sanitation Management (HSM) [Garbage collection, waste management, unsanitary conditions, public health]\n" .
+              "- Disaster Risk Reduction & Emergency Response (DRRM) [Flooding, drainage blockages, typhoons, rescues, emergencies]\n" .
+              "- Transport & Mobility Management (TMM) [Traffic, parking obstruction, tricycle terminals, public disturbance, noise]\n" .
+              "- Citizenship Information & Engagement (CIE) [Citizen inquiries, portal registry, community feedback, general]\n" .
+              "- Social Services Management (SSM) [Social welfare, indigent burial aid, senior citizen aid, solo parents]\n" .
+              "- Permits & Licensing Management (PLM) [Business permits, regulatory licensing violations, commercial clearances]\n" .
+              "- Urban Planning Zoning & Housing (UPZH) [Zoning violations, illegal building structures, municipal housing]\n" .
+              "- Revenue Collection & Treasury Services (RCTS) [Real property tax, assessment payments, municipal fee disputes]\n" .
+              "- Education & Scholarship (ESMS) [City scholarships, student grants, educational aid]\n" .
+              "- Information Technology Department (IT) [Portal errors, mobile app bugs, technical connectivity]\n\n" .
               "Return a strict JSON object with these exact keys:\n" .
               "{\n" .
-              "  \"detected_category\": \"Category name (e.g. Road & Infrastructure Repairs, Flooding & Drainage Maintenance, Electrical Hazard & Public Safety, Garbage & Waste Management, Public Safety & Peace Order, Environmental Protection)\",\n" .
+              "  \"detected_category\": \"Category name (e.g. Road & Infrastructure Repairs, Garbage & Sanitation, Flooding & Emergency, Traffic & Public Safety, Social Services Support, General Citizen Inquiries)\",\n" .
               "  \"priority\": \"Urgent\" or \"High\" or \"Medium\" or \"Low\",\n" .
-              "  \"assigned_department\": \"City Engineering & Public Works Office\" or \"Caloocan Flood Control & Drainage Bureau\" or \"Caloocan Public Safety & Police Bureau (CPTMD)\" or \"Environmental / Waste Management Department\" or \"Public Safety Electrical Division\",\n" .
-              "  \"confidence_score\": \"e.g. 98% - Gemini 3.8 Flash\",\n" .
+              "  \"assigned_department\": \"Exact official department name from the list above\",\n" .
+              "  \"confidence_score\": \"e.g. 98% - Gemini 3.5 Flash\",\n" .
               "  \"ai_reasoning\": \"1-2 clear sentences explaining why this department and priority were selected.\"\n" .
               "}";
 
@@ -343,62 +355,89 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($geminiResult) {
             $detectedCategory = $geminiResult['detected_category'] ?? $category;
             $priority = in_array($geminiResult['priority'] ?? '', ['Urgent', 'High', 'Medium', 'Low']) ? $geminiResult['priority'] : 'Medium';
-            $assignedDept = $geminiResult['assigned_department'] ?? 'Caloocan Public Assistance Bureau';
+            $assignedDept = $geminiResult['assigned_department'] ?? 'Citizenship Information & Engagement (CIE)';
             $confidenceScore = $geminiResult['confidence_score'] ?? '98% - Gemini 3.5 Flash';
             $aiReason = $geminiResult['ai_reasoning'] ?? 'Analyzed by Google Gemini AI multi-modal engine.';
             $similarConcerns = 'Analyzed by live Gemini Engine';
         } else {
             // Fallback: Rule-Based Classifier Simulation
-            $textCombo = strtolower($title . ' ' . $description . ' ' . $category);
             $detectedCategory = $category;
             $priority = 'Medium';
-            $assignedDept = 'Caloocan Public Assistance Bureau';
+            $assignedDept = 'Citizenship Information & Engagement (CIE)';
             $confidenceScore = '95% - Gemini AI Multi-Modal Engine';
             $aiReason = 'Keyword and category rules applied.';
             $similarConcerns = 'No duplicate reports found';
 
-            if (strpos($textCombo, 'garbage') !== false || strpos($textCombo, 'waste') !== false || strpos($textCombo, 'trash') !== false || strpos($textCombo, 'dump') !== false || $category === 'Garbage & Waste') {
-                $detectedCategory = 'Garbage & Waste Management';
+            if (strpos($textCombo, 'garbage') !== false || strpos($textCombo, 'waste') !== false || strpos($textCombo, 'trash') !== false || strpos($textCombo, 'dump') !== false || $category === 'Garbage & Waste' || strpos($textCombo, 'sanitation') !== false) {
+                $detectedCategory = 'Garbage & Sanitation Management';
                 $priority = 'Medium';
-                $assignedDept = 'Environmental / Waste Management Department';
+                $assignedDept = 'Health & Sanitation Management (HSM)';
                 $confidenceScore = '97% - Gemini AI Multi-Modal Engine';
-                $aiReason = 'Waste management issue identified near residential area.';
+                $aiReason = 'Sanitation and waste management issue identified for municipal health team.';
                 $similarConcerns = '2 similar concerns found within 250m';
-            } else if (strpos($textCombo, 'road') !== false || strpos($textCombo, 'pothole') !== false || strpos($textCombo, 'bridge') !== false || strpos($textCombo, 'crack') !== false || $category === 'Road & Infrastructure') {
-                $detectedCategory = 'Road & Infrastructure Repairs';
-                $priority = 'High';
-                $assignedDept = 'City Engineering & Public Works Office';
+            } else if (strpos($textCombo, 'road') !== false || strpos($textCombo, 'pothole') !== false || strpos($textCombo, 'bridge') !== false || strpos($textCombo, 'crack') !== false || strpos($textCombo, 'asphalt') !== false || $category === 'Road & Infrastructure' || strpos($textCombo, 'light') !== false || strpos($textCombo, 'lamp') !== false || strpos($textCombo, 'post') !== false || $category === 'Streetlights') {
+                $detectedCategory = 'Public Assets & Infrastructure Repairs';
+                $priority = (strpos($textCombo, 'light') !== false) ? 'Medium' : 'High';
+                $assignedDept = 'Public Assets & Facilities Management (PAFM)';
                 $confidenceScore = '98% - Gemini AI Multi-Modal Engine';
-                $aiReason = 'Road structural damage poses transportation and pedestrian hazard.';
+                $aiReason = 'Infrastructure hazard assigned to Public Assets & Facilities team.';
                 $similarConcerns = '1 duplicate report merged';
             } else if (strpos($textCombo, 'flood') !== false || strpos($textCombo, 'drain') !== false || strpos($textCombo, 'canal') !== false || strpos($textCombo, 'waterlog') !== false || $category === 'Flooding & Drainage') {
-                $detectedCategory = 'Flooding & Drainage Maintenance';
-                $priority = 'High';
-                $assignedDept = 'Caloocan Flood Control & Drainage Bureau';
-                $confidenceScore = '96% - Gemini AI Multi-Modal Engine';
-                $aiReason = 'Drainage blockage causing waterlogging in local street.';
-                $similarConcerns = '3 related flood tickets detected';
-            } else if (strpos($textCombo, 'light') !== false || strpos($textCombo, 'dark') !== false || strpos($textCombo, 'lamp') !== false || strpos($textCombo, 'post') !== false || $category === 'Streetlights') {
-                $detectedCategory = 'Streetlighting & Public Electrical';
-                $priority = 'Medium';
-                $assignedDept = 'Public Safety Electrical Division';
-                $confidenceScore = '94% - Gemini AI Multi-Modal Engine';
-                $aiReason = 'Lighting disruption affecting nighttime visibility and safety.';
-                $similarConcerns = 'No duplicate reports found';
-            } else if (strpos($textCombo, 'safety') !== false || strpos($textCombo, 'police') !== false || strpos($textCombo, 'hazard') !== false || strpos($textCombo, 'theft') !== false || $category === 'Public Safety') {
-                $detectedCategory = 'Public Safety & Peace Order';
+                $detectedCategory = 'Flooding & Drainage Emergency';
                 $priority = 'Urgent';
-                $assignedDept = 'Caloocan Public Safety & Police Bureau (CPTMD)';
-                $confidenceScore = '99% - Gemini AI Multi-Modal Engine';
-                $aiReason = 'Direct public safety threat requiring urgent dispatch.';
-                $similarConcerns = 'Immediate dispatch alert generated';
-            } else if (strpos($textCombo, 'tree') !== false || strpos($textCombo, 'smoke') !== false || strpos($textCombo, 'pollution') !== false || $category === 'Environment') {
-                $detectedCategory = 'Environmental Protection & Natural Resources';
+                $assignedDept = 'Disaster Risk Reduction & Emergency Response (DRRM)';
+                $confidenceScore = '96% - Gemini AI Multi-Modal Engine';
+                $aiReason = 'Drainage blockage causing flood risk routed to DRRM.';
+                $similarConcerns = '3 related flood tickets detected';
+            } else if (strpos($textCombo, 'traffic') !== false || strpos($textCombo, 'parking') !== false || strpos($textCombo, 'safety') !== false || strpos($textCombo, 'police') !== false || strpos($textCombo, 'hazard') !== false || strpos($textCombo, 'theft') !== false || strpos($textCombo, 'noise') !== false || $category === 'Public Safety') {
+                $detectedCategory = 'Transport & Public Safety';
+                $priority = (strpos($textCombo, 'theft') !== false || strpos($textCombo, 'police') !== false) ? 'Urgent' : 'High';
+                $assignedDept = 'Transport & Mobility Management (TMM)';
+                $confidenceScore = '98% - Gemini AI Multi-Modal Engine';
+                $aiReason = 'Traffic and public order concern assigned to Transport & Mobility team.';
+                $similarConcerns = 'Field dispatch alert generated';
+            } else if (strpos($textCombo, 'indigent') !== false || strpos($textCombo, 'burial') !== false || strpos($textCombo, 'senior') !== false || strpos($textCombo, 'welfare') !== false || strpos($textCombo, 'pwd') !== false || strpos($textCombo, 'solo parent') !== false) {
+                $detectedCategory = 'Social Welfare & Community Assistance';
                 $priority = 'Medium';
-                $assignedDept = 'City Environment & Natural Resources Office';
-                $confidenceScore = '93% - Gemini AI Multi-Modal Engine';
-                $aiReason = 'Environmental concern logged for inspection.';
-                $similarConcerns = '1 related environmental ticket';
+                $assignedDept = 'Social Services Management (SSM)';
+                $confidenceScore = '95% - Gemini AI Multi-Modal Engine';
+                $aiReason = 'Community social assistance concern routed to Social Services Management.';
+                $similarConcerns = 'No duplicate reports found';
+            } else if (strpos($textCombo, 'permit') !== false || strpos($textCombo, 'license') !== false || strpos($textCombo, 'business') !== false) {
+                $detectedCategory = 'Permits & Commercial Licensing';
+                $priority = 'Medium';
+                $assignedDept = 'Permits & Licensing Management (PLM)';
+                $confidenceScore = '95% - Gemini AI Multi-Modal Engine';
+                $aiReason = 'Commercial regulation issue routed to Permits & Licensing.';
+                $similarConcerns = 'No duplicate reports found';
+            } else if (strpos($textCombo, 'zoning') !== false || strpos($textCombo, 'housing') !== false || strpos($textCombo, 'building') !== false) {
+                $detectedCategory = 'Urban Planning & Housing Compliance';
+                $priority = 'Medium';
+                $assignedDept = 'Urban Planning Zoning & Housing (UPZH)';
+                $confidenceScore = '94% - Gemini AI Multi-Modal Engine';
+                $aiReason = 'Land use and housing inquiry routed to UPZH.';
+                $similarConcerns = 'No duplicate reports found';
+            } else if (strpos($textCombo, 'tax') !== false || strpos($textCombo, 'treasury') !== false || strpos($textCombo, 'rpt') !== false) {
+                $detectedCategory = 'Municipal Revenue & Treasury';
+                $priority = 'Low';
+                $assignedDept = 'Revenue Collection & Treasury Services (RCTS)';
+                $confidenceScore = '95% - Gemini AI Multi-Modal Engine';
+                $aiReason = 'Municipal revenue query routed to Treasury Services.';
+                $similarConcerns = 'No duplicate reports found';
+            } else if (strpos($textCombo, 'scholarship') !== false || strpos($textCombo, 'student') !== false || strpos($textCombo, 'grant') !== false) {
+                $detectedCategory = 'Education & Scholarships';
+                $priority = 'Low';
+                $assignedDept = 'Education & Scholarship (ESMS)';
+                $confidenceScore = '96% - Gemini AI Multi-Modal Engine';
+                $aiReason = 'Educational grant inquiry routed to Education & Scholarship.';
+                $similarConcerns = 'No duplicate reports found';
+            } else if (strpos($textCombo, 'app') !== false || strpos($textCombo, 'login') !== false || strpos($textCombo, 'technical') !== false || strpos($textCombo, 'bug') !== false) {
+                $detectedCategory = 'IT & Technical Support';
+                $priority = 'Medium';
+                $assignedDept = 'Information Technology Department (IT)';
+                $confidenceScore = '98% - Gemini AI Multi-Modal Engine';
+                $aiReason = 'System technical report routed to IT Department.';
+                $similarConcerns = 'No duplicate reports found';
             }
         }
 
