@@ -69,7 +69,9 @@ function normalizeCategory($cat) {
 }
 
 try {
+    $rows = [];
     $pdo = null;
+
     if (function_exists('getDbConnection')) {
         try {
             $pdo = getDbConnection();
@@ -77,25 +79,60 @@ try {
     }
     
     if (!$pdo) {
-        $pdo = new PDO("mysql:host=127.0.0.1;port=3306;dbname=citizen_verification;charset=utf8mb4", 'root', '', [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        ]);
+        try {
+            $pdo = new PDO("mysql:host=127.0.0.1;port=3306;dbname=citizen_verification;charset=utf8mb4", 'root', '', [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            ]);
+        } catch (Exception $e) {}
     }
 
-    $stmt = $pdo->query("
-        SELECT 
-            `id`, `alert_id`, `title`, `body`, `category`, `priority`,
-            `channels`, `target_audience`, `target_barangay`,
-            `sender_name`, `sender_role`, `status`,
-            `recipients_count`, `attachment_url`, `created_at`
-        FROM `broadcast_alerts`
-        WHERE `status` IN ('Delivered', 'Sent')
-        ORDER BY `created_at` DESC
-        LIMIT 50
-    ");
-    
-    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    if ($pdo) {
+        try {
+            $stmt = $pdo->query("
+                SELECT 
+                    `id`, `alert_id`, `title`, `body`, `category`, `priority`,
+                    `channels`, `target_audience`, `target_barangay`,
+                    `sender_name`, `sender_role`, `status`,
+                    `recipients_count`, `attachment_url`, `created_at`
+                FROM `broadcast_alerts`
+                WHERE `status` IN ('Delivered', 'Sent')
+                ORDER BY `created_at` DESC
+                LIMIT 50
+            ");
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Exception $e) {}
+    }
+
+    // Mirror Fallback: Query civentral_certificates if citizen_verification is empty or unavailable
+    if (empty($rows)) {
+        try {
+            $certPdo = null;
+            if (function_exists('getCertificateDbConnection')) {
+                $certPdo = getCertificateDbConnection();
+            } else {
+                $certPdo = new PDO("mysql:host=127.0.0.1;port=3306;dbname=civentral_certificates;charset=utf8mb4", 'root', '', [
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                ]);
+            }
+
+            if ($certPdo) {
+                $stmt = $certPdo->query("
+                    SELECT 
+                        `id`, `alert_id`, `title`, `body`, `category`, `priority`,
+                        `channels`, `target_audience`, `target_barangay`,
+                        `sender_name`, `sender_role`, `status`,
+                        `recipients_count`, `attachment_url`, `created_at`
+                    FROM `broadcast_alerts`
+                    WHERE `status` IN ('Delivered', 'Sent')
+                    ORDER BY `created_at` DESC
+                    LIMIT 50
+                ");
+                $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            }
+        } catch (Exception $e) {}
+    }
 
     $alerts = [];
     foreach ($rows as $r) {

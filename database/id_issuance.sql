@@ -1,4 +1,4 @@
-﻿-- ==============================================================================
+-- ==============================================================================
 -- CIVENTRAL CITIZEN ENGAGEMENT PLATFORM - ID ISSUANCE SUBSYSTEM DATABASE
 -- Target Databases: `civentral_certificates` & `citizen_verification`
 -- Compatible with: MySQL 5.7+, MySQL 8.0+, MariaDB 10.4+, and Dokploy Cloud MySQL
@@ -60,6 +60,16 @@ CREATE TABLE IF NOT EXISTS `id_issuance_applications` (
   `photo_2x2_url` MEDIUMTEXT NULL DEFAULT NULL,
   `support_doc_name` VARCHAR(150) NULL DEFAULT NULL,
   `support_doc_url` MEDIUMTEXT NULL DEFAULT NULL,
+
+  -- Emergency Contact Information
+  `emergency_contact_name` VARCHAR(150) NULL DEFAULT NULL,
+  `emergency_contact_phone` VARCHAR(50) NULL DEFAULT NULL,
+  `emergency_contact_relation` VARCHAR(50) NULL DEFAULT NULL,
+
+  -- Citizen Signature & Digital Sign-off
+  `signature_url` MEDIUMTEXT NULL DEFAULT NULL,
+  `e_signature_name` VARCHAR(150) NULL DEFAULT NULL,
+  `signature_mode` VARCHAR(50) NULL DEFAULT 'upload',
   
   -- Multi-Stage Verification & Production Lifecycle
   `status` ENUM(
