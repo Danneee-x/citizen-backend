@@ -1,4 +1,9 @@
 <?php
+// Suppress warnings / notices from polluting JSON API output
+error_reporting(0);
+ini_set('display_errors', '0');
+ob_start();
+
 // Prevent session lock issues
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -294,6 +299,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $countStmt = $pdo->query("SELECT COUNT(*) as total FROM `citizen_concerns`");
         $total = $countStmt->fetchColumn();
 
+        if (ob_get_length()) ob_clean();
         echo json_encode([
             'status' => 'success',
             'database' => 'citizen_verification',
@@ -305,6 +311,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         exit;
     } catch (\Exception $e) {
         http_response_code(500);
+        if (ob_get_length()) ob_clean();
         echo json_encode([
             'status' => 'error',
             'message' => 'Database error: ' . $e->getMessage()
@@ -344,19 +351,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (empty($title)) {
             http_response_code(400);
-            echo json_encode(['status' => 'error', 'message' => 'Concern title/subject is required.']);
+            if (ob_get_length()) ob_clean();
+        echo json_encode(['status' => 'error', 'message' => 'Concern title/subject is required.']);
             exit;
         }
 
         if (empty($description)) {
             http_response_code(400);
-            echo json_encode(['status' => 'error', 'message' => 'Concern detailed description is required.']);
+            if (ob_get_length()) ob_clean();
+        echo json_encode(['status' => 'error', 'message' => 'Concern detailed description is required.']);
             exit;
         }
 
         if (empty($location)) {
             http_response_code(400);
-            echo json_encode(['status' => 'error', 'message' => 'Concern location is required.']);
+            if (ob_get_length()) ob_clean();
+        echo json_encode(['status' => 'error', 'message' => 'Concern location is required.']);
             exit;
         }
 
@@ -373,6 +383,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $district = 'District 1';
             }
         }
+
+        $textCombo = strtolower($title . ' ' . $description . ' ' . $category);
 
         // 1. Live Google Gemini Multi-Modal AI Classification
         $geminiResult = classifyConcernWithGemini($title, $description, $category, $barangay);
@@ -592,6 +604,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $insertedId = $pdo->lastInsertId();
 
+        if (ob_get_length()) ob_clean();
         echo json_encode([
             'status' => 'success',
             'message' => 'Concern ticket filed successfully.',
@@ -614,6 +627,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     } catch (\Exception $e) {
         http_response_code(500);
+        if (ob_get_length()) ob_clean();
         echo json_encode([
             'status' => 'error',
             'message' => 'Failed to process concern submission: ' . $e->getMessage()

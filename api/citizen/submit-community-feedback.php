@@ -1,4 +1,9 @@
 <?php
+// Suppress warnings / notices from polluting JSON API output
+error_reporting(0);
+ini_set('display_errors', '0');
+ob_start();
+
 /**
  * Civentral Citizen API - Submit Community Ratings & Feedback
  * Endpoint: POST /api/citizen/submit-community-feedback.php

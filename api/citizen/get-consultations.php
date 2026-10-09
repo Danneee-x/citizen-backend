@@ -1,4 +1,9 @@
 <?php
+// Suppress warnings / notices from polluting JSON API output
+error_reporting(0);
+ini_set('display_errors', '0');
+ob_start();
+
 /**
  * GET Active Civic Consultations for Citizen App
  * Path: /citizen-backend/api/citizen/get-consultations.php

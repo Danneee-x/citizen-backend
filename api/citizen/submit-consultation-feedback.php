@@ -1,4 +1,9 @@
 <?php
+// Suppress warnings / notices from polluting JSON API output
+error_reporting(0);
+ini_set('display_errors', '0');
+ob_start();
+
 /**
  * POST Submit Civic Consultation Feedback & Stance from Citizen App
  * Path: /citizen-backend/api/citizen/submit-consultation-feedback.php
