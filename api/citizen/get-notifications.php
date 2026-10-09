@@ -147,6 +147,16 @@ try {
             $plainBody = $r['body'];
         }
 
+        // Resolve attachment URL cleanly for mobile app display
+        $attUrl = $r['attachment_url'] ?? null;
+        if (!empty($attUrl) && is_string($attUrl)) {
+            $attUrl = trim($attUrl);
+            if (strpos($attUrl, 'http://') !== 0 && strpos($attUrl, 'https://') !== 0 && strpos($attUrl, 'data:image/') !== 0) {
+                $attUrl = 'https://citizenship.civentral.tech/' . ltrim($attUrl, '/');
+            } else {
+                $attUrl = str_replace(['https://civentral.tech/', 'http://civentral.tech/', 'api-citizen.civentral.tech'], ['https://citizenship.civentral.tech/', 'https://citizenship.civentral.tech/', 'citizenship.civentral.tech'], $attUrl);
+            }
+        }
         $alerts[] = [
             'id' => $r['alert_id'] ?: 'ALT-' . $r['id'],
             'numericId' => (int)$r['id'],
@@ -159,7 +169,7 @@ try {
             'timestamp' => formatRelativeTime($r['created_at']),
             'createdAt' => $r['created_at'],
             'sender' => $r['sender_name'] ?: 'Caloocan Public Information Office',
-            'attachmentUrl' => $r['attachment_url'],
+            'attachmentUrl' => $attUrl ?: null,
             'isRead' => false,
         ];
     }

@@ -70,6 +70,9 @@ try {
     if (function_exists('getDbConnection')) {
         try {
             $pdo = getDbConnection();
+    try {
+        $pdo->exec("ALTER TABLE `community_ratings` ADD COLUMN IF NOT EXISTS `attachment_url` VARCHAR(500) NULL;");
+    } catch (Exception $e) {}
         } catch (Exception $e) {}
     }
 
@@ -84,11 +87,11 @@ try {
         INSERT INTO `community_ratings` (
             `feedback_ref`, `citizen_name`, `citizen_email`, `citizen_barangay`,
             `service_name`, `transaction_ref`, `overall_rating`, `quality_rating`,
-            `staff_rating`, `comments`, `sentiment`, `status`, `created_at`
+            `staff_rating`, `comments`, `sentiment`, `attachment_url`, `status`, `created_at`
         ) VALUES (
             :feedback_ref, :citizen_name, :citizen_email, :citizen_barangay,
             :service_name, :transaction_ref, :overall_rating, :quality_rating,
-            :staff_rating, :comments, :sentiment, 'Published', NOW()
+            :staff_rating, :comments, :sentiment, :attachment_url, 'Published', NOW()
         )
     ");
 
@@ -104,6 +107,7 @@ try {
         ':staff_rating' => $staffRating,
         ':comments' => $comments ?: null,
         ':sentiment' => $sentiment,
+        ':attachment_url' => $attachmentUrl,
     ]);
 
     // Mirror to civentral_certificates if available

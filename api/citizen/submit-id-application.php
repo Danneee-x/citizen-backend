@@ -1,4 +1,52 @@
 <?php
+
+if (!function_exists('saveIdBase64Image')) {
+    function saveIdBase64Image($dataUrl, $prefix = 'id_asset') {
+        if (empty($dataUrl)) return null;
+        $dataUrl = trim($dataUrl);
+        if (strpos($dataUrl, 'http://') === 0 || strpos($dataUrl, 'https://') === 0) return $dataUrl;
+        if (strpos($dataUrl, 'assets/') === 0 || strpos($dataUrl, 'uploads/') === 0) return $dataUrl;
+
+        $ext = 'jpg';
+        $data = null;
+        if (preg_match('/^data:image\/(\w+);base64,/', $dataUrl, $type)) {
+            $data = substr($dataUrl, strpos($dataUrl, ',') + 1);
+            $ext = strtolower($type[1]);
+            if ($ext === 'jpeg') $ext = 'jpg';
+        } elseif (strpos($dataUrl, 'data:application/pdf') === 0) {
+            $data = substr($dataUrl, strpos($dataUrl, ',') + 1);
+            $ext = 'pdf';
+        } elseif (strlen($dataUrl) > 100 && !preg_match('/\s/', $dataUrl)) {
+            $data = $dataUrl;
+        }
+
+        if ($data !== null) {
+            $decoded = base64_decode(trim($data));
+            if ($decoded !== false && strlen($decoded) > 0) {
+                $filename = $prefix . '_' . time() . '_' . substr(md5(uniqid()), 0, 8) . '.' . $ext;
+                $targetDirs = [
+                    __DIR__ . '/../../assets/uploads/ids/',
+                    '/var/www/html/assets/uploads/ids/',
+                    '/var/www/html/uploads/ids/',
+                    'C:/xampp/htdocs/citizen-backend/assets/uploads/ids/',
+                    'C:/xampp/htdocs/citizen-information-and-engagement-final-try/assets/uploads/ids/'
+                ];
+                foreach ($targetDirs as $td) {
+                    if (!is_dir($td)) {
+                        @mkdir($td, 0777, true);
+                        @chmod($td, 0777);
+                    }
+                    if (is_dir($td)) {
+                        @file_put_contents($td . $filename, $decoded);
+                    }
+                }
+                return 'assets/uploads/ids/' . $filename;
+            }
+        }
+        return $dataUrl;
+    }
+}
+
 // Suppress warnings / notices from polluting JSON API output
 error_reporting(0);
 ini_set('display_errors', '0');
@@ -235,9 +283,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $emergencyName = trim($data['emergency_contact_name'] ?? '');
         $emergencyPhone = trim($data['emergency_contact_phone'] ?? '');
         $emergencyRelation = trim($data['emergency_contact_relation'] ?? 'Next of Kin');
-        $signatureUrl = trim($data['signature_url'] ?? '');
+        $rawSignature = trim($data['signature_url'] ?? '');
+        $signatureUrl = saveIdBase64Image($rawSignature, 'signature');
         $eSignatureName = trim($data['e_signature_name'] ?? '');
         $signatureMode = trim($data['signature_mode'] ?? 'upload');
+
+        $savedPhoto2x2 = saveIdBase64Image($data['photo_2x2_url'] ?? null, 'photo_2x2');
+        $savedPrimaryDoc = saveIdBase64Image($data['primary_doc_url'] ?? null, 'primary_doc');
 
         $stmt = $pdo->prepare("
             INSERT INTO `id_issuance_applications` 
@@ -269,8 +321,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ':claim_office' => $claimOffice,
             ':turnaround' => $turnaround,
             ':doc_name' => $data['primary_doc_name'] ?? 'Proof of Residency (Min 6 Months)',
-            ':doc_url' => $data['primary_doc_url'] ?? null,
-            ':photo_url' => $data['photo_2x2_url'] ?? null,
+            ':doc_url' => $savedPrimaryDoc ?: ($data['primary_doc_url'] ?? null),
+            ':photo_url' => $savedPhoto2x2 ?: ($data['photo_2x2_url'] ?? null),
             ':sup_name' => $data['support_doc_name'] ?? null,
             ':sup_url' => $data['support_doc_url'] ?? null,
             ':em_name' => $emergencyName ?: null,
