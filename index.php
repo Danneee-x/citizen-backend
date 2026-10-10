@@ -1,4 +1,7 @@
 <?php
+// Enforce official Philippine Standard Time (PST, UTC+8)
+date_default_timezone_set('Asia/Manila');
+
 /**
  * CIVentral Citizen Information & Engagement Subsystem API Gateway
  */

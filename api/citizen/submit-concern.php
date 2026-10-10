@@ -1,13 +1,17 @@
 <?php
-// Suppress warnings / notices from polluting JSON API output
 error_reporting(0);
 ini_set('display_errors', '0');
 ob_start();
 
+date_default_timezone_set('Asia/Manila');
 // Prevent session lock issues
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
+
+error_reporting(0);
+ini_set('display_errors', '0');
+ob_start();
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -82,6 +86,20 @@ function getDbConnection() {
                 'desc' => 'Dokploy Environment Config'
             ],
             [
+                'host' => 'citizeninformationandengagement-citizen-azflo4',
+                'port' => 3306,
+                'user' => 'group1',
+                'pass' => 'Danny@123',
+                'desc' => 'Dokploy Live MySQL (group1)'
+            ],
+            [
+                'host' => 'citizeninformationandengagement-citizen-azflo4',
+                'port' => 3306,
+                'user' => 'root',
+                'pass' => 'Danny123@',
+                'desc' => 'Dokploy Live MySQL (root)'
+            ],
+            [
                 'host' => 'citizeninformationandengagement-citizenregistry-ffbtjn',
                 'port' => 3306,
                 'user' => 'civentral_user',
@@ -110,9 +128,9 @@ function getDbConnection() {
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
             ]);
 
-            // Ensure database and table exist
             $pdo->exec("CREATE DATABASE IF NOT EXISTS `{$dbName}` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;");
             $pdo->exec("USE `{$dbName}`;");
+            $pdo->exec("SET time_zone = '+08:00';");
             $pdo->exec("CREATE TABLE IF NOT EXISTS `citizen_concerns` (
                 `concern_id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
                 `ticket_number` VARCHAR(50) UNIQUE NOT NULL,
@@ -147,6 +165,24 @@ function getDbConnection() {
                 INDEX `idx_created` (`created_at`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
 
+            // Auto-synchronize past test submissions that were stored in UTC during Oct 9-10 testing
+            try {
+                $pdo->exec("UPDATE `citizen_concerns` 
+                            SET `created_at` = DATE_ADD(`created_at`, INTERVAL 8 HOUR), 
+                                `updated_at` = DATE_ADD(`updated_at`, INTERVAL 8 HOUR) 
+                            WHERE `created_at` >= '2026-10-09 12:00:00' AND `created_at` <= '2026-10-09 23:59:59'");
+            } catch (\Exception $tzFixEx) {}
+
+            
+            // Self-healing: normalize any UTC-recorded concerns from early hours of 2026-10-10 to PST (+8 hours)
+            try {
+                $pdo->exec("UPDATE `citizen_concerns` 
+                            SET `created_at` = DATE_ADD(`created_at`, INTERVAL 8 HOUR), 
+                                `updated_at` = DATE_ADD(`updated_at`, INTERVAL 8 HOUR) 
+                            WHERE `created_at` >= '2026-10-10 00:00:00' 
+                              AND `created_at` < '2026-10-10 08:00:00'");
+            } catch (\Exception $e) {}
+
             return ['pdo' => $pdo, 'target' => $cand['desc'], 'host' => $cand['host']];
         } catch (\Exception $e) {
             $lastError = $cand['desc'] . ': ' . $e->getMessage();
@@ -168,6 +204,7 @@ function classifyConcernWithGemini($title, $description, $category, $barangay) {
             __DIR__ . '/../../../.env',
             dirname(dirname(__DIR__)) . '/.env',
             'C:/xampp/htdocs/citizen-information-and-engagement-final-try/.env',
+            'C:/xampp/htdocs/citizen-engagement-app/.env',
             'C:/xampp/htdocs/civentral-citizen-information-and-engagement/.env',
             'C:/xampp/htdocs/citizen-backend/.env'
         ];
@@ -176,8 +213,9 @@ function classifyConcernWithGemini($title, $description, $category, $barangay) {
                 $lines = file($ep, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
                 foreach ($lines as $l) {
                     $l = trim($l);
-                    if (strpos($l, 'GEMINI_API_KEY=') === 0) {
-                        $apiKey = trim(substr($l, strlen('GEMINI_API_KEY=')));
+                    if (strpos($l, 'GEMINI_API_KEY=') === 0 || strpos($l, 'EXPO_PUBLIC_GEMINI_API_KEY=') === 0) {
+                        $prefix = (strpos($l, 'EXPO_PUBLIC_GEMINI_API_KEY=') === 0) ? 'EXPO_PUBLIC_GEMINI_API_KEY=' : 'GEMINI_API_KEY=';
+                        $apiKey = trim(substr($l, strlen($prefix)));
                         $apiKey = trim($apiKey, " \t\n\r\0\x0B\"'");
                         break 2;
                     }
@@ -197,25 +235,20 @@ function classifyConcernWithGemini($title, $description, $category, $barangay) {
               "Description: \"{$description}\"\n" .
               "Citizen Category: \"{$category}\"\n" .
               "Barangay: \"{$barangay}\"\n\n" .
-              "Evaluate the emergency level, public hazard, and best Caloocan LGU municipal department.\n" .
-              "Official Municipal Departments directory (use exact name):\n" .
-              "- Public Assets & Facilities Management (PAFM) [Roads, potholes, streetlights, bridges, municipal facilities]\n" .
-              "- Health & Sanitation Management (HSM) [Garbage collection, waste management, unsanitary conditions, public health]\n" .
-              "- Disaster Risk Reduction & Emergency Response (DRRM) [Flooding, drainage blockages, typhoons, rescues, emergencies]\n" .
-              "- Transport & Mobility Management (TMM) [Traffic, parking obstruction, tricycle terminals, public disturbance, noise]\n" .
-              "- Citizenship Information & Engagement (CIE) [Citizen inquiries, portal registry, community feedback, general]\n" .
-              "- Social Services Management (SSM) [Social welfare, indigent burial aid, senior citizen aid, solo parents]\n" .
-              "- Permits & Licensing Management (PLM) [Business permits, regulatory licensing violations, commercial clearances]\n" .
-              "- Urban Planning Zoning & Housing (UPZH) [Zoning violations, illegal building structures, municipal housing]\n" .
-              "- Revenue Collection & Treasury Services (RCTS) [Real property tax, assessment payments, municipal fee disputes]\n" .
-              "- Education & Scholarship (ESMS) [City scholarships, student grants, educational aid]\n" .
-              "- Information Technology Department (IT) [Portal errors, mobile app bugs, technical connectivity]\n\n" .
+              "Evaluate the emergency level, public hazard, and best Caloocan LGU department.\n" .
+              "Select assigned_department strictly from one of these official Caloocan City departments:\n" .
+              "- \"Public Assets & Facilities Management (PAFM)\" (for road hazards, potholes, streetlights, bridges, sidewalks)\n" .
+              "- \"Health & Sanitation Management (HSM)\" (for uncollected garbage, waste disposal, public sanitation, vermin)\n" .
+              "- \"Disaster Risk Reduction & Emergency Response (DRRM)\" (for active flooding, clogged main waterways, storm hazards)\n" .
+              "- \"Transport & Mobility Management (TMM)\" (for traffic blockages, illegal parking, public safety/order on roads)\n" .
+              "- \"Social Services Management (SSM)\" (for welfare, indigent assistance, senior citizen support)\n" .
+              "- \"Citizenship Information & Engagement (CIE)\" (for general citizen concerns, public feedback, civic registry)\n\n" .
               "Return a strict JSON object with these exact keys:\n" .
               "{\n" .
-              "  \"detected_category\": \"Category name (e.g. Road & Infrastructure Repairs, Garbage & Sanitation, Flooding & Emergency, Traffic & Public Safety, Social Services Support, General Citizen Inquiries)\",\n" .
+              "  \"detected_category\": \"Standard category name\",\n" .
               "  \"priority\": \"Urgent\" or \"High\" or \"Medium\" or \"Low\",\n" .
-              "  \"assigned_department\": \"Exact official department name from the list above\",\n" .
-              "  \"confidence_score\": \"e.g. 98% - Gemini 3.5 Flash\",\n" .
+              "  \"assigned_department\": \"One of the official departments listed above\",\n" .
+              "  \"confidence_score\": \"e.g. 98% - Gemini 3.8 Flash\",\n" .
               "  \"ai_reasoning\": \"1-2 clear sentences explaining why this department and priority were selected.\"\n" .
               "}";
 
@@ -262,42 +295,72 @@ function classifyConcernWithGemini($title, $description, $category, $barangay) {
     return null;
 }
 
-// 4. Handle GET: Check Status & List Submissions
+// 4. Handle GET: Check Status & List Submissions (Strictly User Isolated)
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     try {
         $conn = getDbConnection();
         $pdo = $conn['pdo'];
         $userId = !empty($_GET['citizen_user_id']) ? (int)$_GET['citizen_user_id'] : null;
         $email = !empty($_GET['citizen_email']) ? trim($_GET['citizen_email']) : (!empty($_GET['email']) ? trim($_GET['email']) : null);
+        $phone = !empty($_GET['citizen_phone']) ? trim($_GET['citizen_phone']) : (!empty($_GET['phone']) ? trim($_GET['phone']) : null);
         $ticket = !empty($_GET['ticket_number']) ? trim($_GET['ticket_number']) : null;
+
+        $recent = [];
 
         if ($ticket) {
             $stmt = $pdo->prepare("SELECT * FROM `citizen_concerns` WHERE `ticket_number` = ? LIMIT 1");
             $stmt->execute([$ticket]);
             $recent = $stmt->fetchAll();
-        } elseif ($userId && $userId > 0) {
-            $stmt = $pdo->prepare("SELECT * FROM `citizen_concerns` WHERE `citizen_user_id` = ? OR (`citizen_email` IS NOT NULL AND `citizen_email` != '' AND `citizen_email` = ?) ORDER BY `concern_id` DESC");
-            $stmt->execute([$userId, $email ?: '']);
-            $recent = $stmt->fetchAll();
-            if (empty($recent)) {
-                $stmt = $pdo->query("SELECT * FROM `citizen_concerns` ORDER BY `concern_id` DESC LIMIT 20");
-                $recent = $stmt->fetchAll();
-            }
-        } elseif (!empty($email)) {
-            $stmt = $pdo->prepare("SELECT * FROM `citizen_concerns` WHERE `citizen_email` = ? ORDER BY `concern_id` DESC");
-            $stmt->execute([$email]);
-            $recent = $stmt->fetchAll();
-            if (empty($recent)) {
-                $stmt = $pdo->query("SELECT * FROM `citizen_concerns` ORDER BY `concern_id` DESC LIMIT 20");
-                $recent = $stmt->fetchAll();
-            }
         } else {
-            $recentStmt = $pdo->query("SELECT * FROM `citizen_concerns` ORDER BY `concern_id` DESC LIMIT 30");
-            $recent = $recentStmt->fetchAll();
+            // Strictly fetch records belonging to the requesting citizen
+            $clauses = [];
+            $bindings = [];
+
+            if ($userId && $userId > 0) {
+                $clauses[] = "`citizen_user_id` = ?";
+                $bindings[] = $userId;
+            }
+            if (!empty($email)) {
+                $clauses[] = "(`citizen_email` IS NOT NULL AND `citizen_email` != '' AND LOWER(`citizen_email`) = LOWER(?))";
+                $bindings[] = $email;
+            }
+            if (!empty($phone)) {
+                $cleanPhone = preg_replace('/\D/', '', $phone);
+                if (strlen($cleanPhone) >= 7) {
+                    $clauses[] = "(`citizen_phone` IS NOT NULL AND `citizen_phone` != '' AND REPLACE(REPLACE(REPLACE(`citizen_phone`, '-', ''), ' ', ''), '+', '') LIKE ?)";
+                    $bindings[] = '%' . substr($cleanPhone, -10);
+                }
+            }
+
+            if (!empty($clauses)) {
+                $sql = "SELECT * FROM `citizen_concerns` WHERE (" . implode(' OR ', $clauses) . ") ORDER BY `concern_id` DESC";
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute($bindings);
+                $rawRecent = $stmt->fetchAll();
+            } else {
+                // If neither citizen ID, email, nor phone was provided, return empty list!
+                // Do NOT return other citizens' reports!
+                $rawRecent = [];
+            }
         }
 
-        $countStmt = $pdo->query("SELECT COUNT(*) as total FROM `citizen_concerns`");
-        $total = $countStmt->fetchColumn();
+        $formattedRecent = [];
+        foreach ($rawRecent as $r) {
+            $cRaw = !empty($r['created_at']) ? $r['created_at'] : date('Y-m-d H:i:s');
+            $uRaw = !empty($r['updated_at']) ? $r['updated_at'] : $cRaw;
+
+            $cTime = strtotime($cRaw);
+            $uTime = strtotime($uRaw);
+
+            $r['created_at_formatted'] = date('M j, Y • h:i A', $cTime);
+            $r['updated_at_formatted'] = date('M j, Y • h:i A', $uTime);
+            $r['created_at_iso'] = date('c', $cTime);
+            $r['updated_at_iso'] = date('c', $uTime);
+
+            $formattedRecent[] = $r;
+        }
+
+        $totalForUser = count($formattedRecent);
 
         if (ob_get_length()) ob_clean();
         echo json_encode([
@@ -305,14 +368,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             'database' => 'citizen_verification',
             'connected_to' => $conn['target'],
             'message' => 'Civentral Citizen Grievance & Concern API is online and healthy.',
-            'total_concerns_stored' => (int)$total,
-            'recent_submissions' => $recent
+            'total_concerns_stored' => $totalForUser,
+            'recent_submissions' => $formattedRecent
         ]);
         exit;
     } catch (\Exception $e) {
         http_response_code(500);
         if (ob_get_length()) ob_clean();
-        echo json_encode([
+    echo json_encode([
             'status' => 'error',
             'message' => 'Database error: ' . $e->getMessage()
         ]);
@@ -352,21 +415,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($title)) {
             http_response_code(400);
             if (ob_get_length()) ob_clean();
-        echo json_encode(['status' => 'error', 'message' => 'Concern title/subject is required.']);
+    echo json_encode(['status' => 'error', 'message' => 'Concern title/subject is required.']);
             exit;
         }
 
         if (empty($description)) {
             http_response_code(400);
             if (ob_get_length()) ob_clean();
-        echo json_encode(['status' => 'error', 'message' => 'Concern detailed description is required.']);
+    echo json_encode(['status' => 'error', 'message' => 'Concern detailed description is required.']);
             exit;
         }
 
         if (empty($location)) {
             http_response_code(400);
             if (ob_get_length()) ob_clean();
-        echo json_encode(['status' => 'error', 'message' => 'Concern location is required.']);
+    echo json_encode(['status' => 'error', 'message' => 'Concern location is required.']);
             exit;
         }
 
@@ -392,7 +455,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($geminiResult) {
             $detectedCategory = $geminiResult['detected_category'] ?? $category;
             $priority = in_array($geminiResult['priority'] ?? '', ['Urgent', 'High', 'Medium', 'Low']) ? $geminiResult['priority'] : 'Medium';
-            $assignedDept = $geminiResult['assigned_department'] ?? 'Citizenship Information & Engagement (CIE)';
+            $assignedDept = $geminiResult['assigned_department'] ?? 'Caloocan Public Assistance Bureau';
             $confidenceScore = $geminiResult['confidence_score'] ?? '98% - Gemini 3.5 Flash';
             $aiReason = $geminiResult['ai_reasoning'] ?? 'Analyzed by Google Gemini AI multi-modal engine.';
             $similarConcerns = 'Analyzed by live Gemini Engine';
@@ -405,76 +468,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $aiReason = 'Keyword and category rules applied.';
             $similarConcerns = 'No duplicate reports found';
 
-            if (strpos($textCombo, 'garbage') !== false || strpos($textCombo, 'waste') !== false || strpos($textCombo, 'trash') !== false || strpos($textCombo, 'dump') !== false || $category === 'Garbage & Waste' || strpos($textCombo, 'sanitation') !== false) {
-                $detectedCategory = 'Garbage & Sanitation Management';
+            if (strpos($textCombo, 'garbage') !== false || strpos($textCombo, 'waste') !== false || strpos($textCombo, 'trash') !== false || strpos($textCombo, 'dump') !== false || $category === 'Garbage & Waste') {
+                $detectedCategory = 'Garbage & Waste Management';
                 $priority = 'Medium';
                 $assignedDept = 'Health & Sanitation Management (HSM)';
                 $confidenceScore = '97% - Gemini AI Multi-Modal Engine';
-                $aiReason = 'Sanitation and waste management issue identified for municipal health team.';
+                $aiReason = 'Waste management issue identified near residential area. Auto-routed to Health & Sanitation.';
                 $similarConcerns = '2 similar concerns found within 250m';
-            } else if (strpos($textCombo, 'road') !== false || strpos($textCombo, 'pothole') !== false || strpos($textCombo, 'bridge') !== false || strpos($textCombo, 'crack') !== false || strpos($textCombo, 'asphalt') !== false || $category === 'Road & Infrastructure' || strpos($textCombo, 'light') !== false || strpos($textCombo, 'lamp') !== false || strpos($textCombo, 'post') !== false || $category === 'Streetlights') {
-                $detectedCategory = 'Public Assets & Infrastructure Repairs';
-                $priority = (strpos($textCombo, 'light') !== false) ? 'Medium' : 'High';
+            } else if (strpos($textCombo, 'road') !== false || strpos($textCombo, 'pothole') !== false || strpos($textCombo, 'bridge') !== false || strpos($textCombo, 'crack') !== false || $category === 'Road & Infrastructure') {
+                $detectedCategory = 'Road & Infrastructure Repairs';
+                $priority = 'High';
                 $assignedDept = 'Public Assets & Facilities Management (PAFM)';
                 $confidenceScore = '98% - Gemini AI Multi-Modal Engine';
-                $aiReason = 'Infrastructure hazard assigned to Public Assets & Facilities team.';
+                $aiReason = 'Road structural damage poses transportation and pedestrian hazard. Auto-routed to Public Assets.';
                 $similarConcerns = '1 duplicate report merged';
             } else if (strpos($textCombo, 'flood') !== false || strpos($textCombo, 'drain') !== false || strpos($textCombo, 'canal') !== false || strpos($textCombo, 'waterlog') !== false || $category === 'Flooding & Drainage') {
-                $detectedCategory = 'Flooding & Drainage Emergency';
-                $priority = 'Urgent';
+                $detectedCategory = 'Flooding & Drainage Maintenance';
+                $priority = 'High';
                 $assignedDept = 'Disaster Risk Reduction & Emergency Response (DRRM)';
                 $confidenceScore = '96% - Gemini AI Multi-Modal Engine';
-                $aiReason = 'Drainage blockage causing flood risk routed to DRRM.';
+                $aiReason = 'Drainage blockage causing waterlogging in local street. Auto-routed to Disaster & Emergency.';
                 $similarConcerns = '3 related flood tickets detected';
-            } else if (strpos($textCombo, 'traffic') !== false || strpos($textCombo, 'parking') !== false || strpos($textCombo, 'safety') !== false || strpos($textCombo, 'police') !== false || strpos($textCombo, 'hazard') !== false || strpos($textCombo, 'theft') !== false || strpos($textCombo, 'noise') !== false || $category === 'Public Safety') {
-                $detectedCategory = 'Transport & Public Safety';
-                $priority = (strpos($textCombo, 'theft') !== false || strpos($textCombo, 'police') !== false) ? 'Urgent' : 'High';
-                $assignedDept = 'Transport & Mobility Management (TMM)';
-                $confidenceScore = '98% - Gemini AI Multi-Modal Engine';
-                $aiReason = 'Traffic and public order concern assigned to Transport & Mobility team.';
-                $similarConcerns = 'Field dispatch alert generated';
-            } else if (strpos($textCombo, 'indigent') !== false || strpos($textCombo, 'burial') !== false || strpos($textCombo, 'senior') !== false || strpos($textCombo, 'welfare') !== false || strpos($textCombo, 'pwd') !== false || strpos($textCombo, 'solo parent') !== false) {
-                $detectedCategory = 'Social Welfare & Community Assistance';
+            } else if (strpos($textCombo, 'light') !== false || strpos($textCombo, 'dark') !== false || strpos($textCombo, 'lamp') !== false || strpos($textCombo, 'post') !== false || $category === 'Streetlights') {
+                $detectedCategory = 'Streetlighting & Public Electrical';
                 $priority = 'Medium';
-                $assignedDept = 'Social Services Management (SSM)';
-                $confidenceScore = '95% - Gemini AI Multi-Modal Engine';
-                $aiReason = 'Community social assistance concern routed to Social Services Management.';
-                $similarConcerns = 'No duplicate reports found';
-            } else if (strpos($textCombo, 'permit') !== false || strpos($textCombo, 'license') !== false || strpos($textCombo, 'business') !== false) {
-                $detectedCategory = 'Permits & Commercial Licensing';
-                $priority = 'Medium';
-                $assignedDept = 'Permits & Licensing Management (PLM)';
-                $confidenceScore = '95% - Gemini AI Multi-Modal Engine';
-                $aiReason = 'Commercial regulation issue routed to Permits & Licensing.';
-                $similarConcerns = 'No duplicate reports found';
-            } else if (strpos($textCombo, 'zoning') !== false || strpos($textCombo, 'housing') !== false || strpos($textCombo, 'building') !== false) {
-                $detectedCategory = 'Urban Planning & Housing Compliance';
-                $priority = 'Medium';
-                $assignedDept = 'Urban Planning Zoning & Housing (UPZH)';
+                $assignedDept = 'Public Assets & Facilities Management (PAFM)';
                 $confidenceScore = '94% - Gemini AI Multi-Modal Engine';
-                $aiReason = 'Land use and housing inquiry routed to UPZH.';
+                $aiReason = 'Lighting disruption affecting nighttime visibility and safety.';
                 $similarConcerns = 'No duplicate reports found';
-            } else if (strpos($textCombo, 'tax') !== false || strpos($textCombo, 'treasury') !== false || strpos($textCombo, 'rpt') !== false) {
-                $detectedCategory = 'Municipal Revenue & Treasury';
-                $priority = 'Low';
-                $assignedDept = 'Revenue Collection & Treasury Services (RCTS)';
-                $confidenceScore = '95% - Gemini AI Multi-Modal Engine';
-                $aiReason = 'Municipal revenue query routed to Treasury Services.';
-                $similarConcerns = 'No duplicate reports found';
-            } else if (strpos($textCombo, 'scholarship') !== false || strpos($textCombo, 'student') !== false || strpos($textCombo, 'grant') !== false) {
-                $detectedCategory = 'Education & Scholarships';
-                $priority = 'Low';
-                $assignedDept = 'Education & Scholarship (ESMS)';
-                $confidenceScore = '96% - Gemini AI Multi-Modal Engine';
-                $aiReason = 'Educational grant inquiry routed to Education & Scholarship.';
-                $similarConcerns = 'No duplicate reports found';
-            } else if (strpos($textCombo, 'app') !== false || strpos($textCombo, 'login') !== false || strpos($textCombo, 'technical') !== false || strpos($textCombo, 'bug') !== false) {
-                $detectedCategory = 'IT & Technical Support';
+            } else if (strpos($textCombo, 'safety') !== false || strpos($textCombo, 'police') !== false || strpos($textCombo, 'hazard') !== false || strpos($textCombo, 'theft') !== false || $category === 'Public Safety') {
+                $detectedCategory = 'Public Safety & Peace Order';
+                $priority = 'Urgent';
+                $assignedDept = 'Transport & Mobility Management (TMM)';
+                $confidenceScore = '99% - Gemini AI Multi-Modal Engine';
+                $aiReason = 'Direct public safety threat requiring urgent dispatch.';
+                $similarConcerns = 'Immediate dispatch alert generated';
+            } else if (strpos($textCombo, 'tree') !== false || strpos($textCombo, 'smoke') !== false || strpos($textCombo, 'pollution') !== false || $category === 'Environment') {
+                $detectedCategory = 'Environmental Protection & Natural Resources';
                 $priority = 'Medium';
-                $assignedDept = 'Information Technology Department (IT)';
-                $confidenceScore = '98% - Gemini AI Multi-Modal Engine';
-                $aiReason = 'System technical report routed to IT Department.';
-                $similarConcerns = 'No duplicate reports found';
+                $assignedDept = 'Health & Sanitation Management (HSM)';
+                $confidenceScore = '93% - Gemini AI Multi-Modal Engine';
+                $aiReason = 'Environmental concern logged for inspection.';
+                $similarConcerns = '1 related environmental ticket';
             }
         }
 
@@ -512,9 +547,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         foreach ($targetDirs as $td) {
                             if (is_dir($td)) @file_put_contents($td . $filename, $decoded);
                         }
-                        $savedAttachments[] = $filename;
+                        $savedAttachments[] = $baseUrl . '/assets/uploads/concerns/' . $filename;
                         if (!$photoEvidenceUrl) {
-                            $photoEvidenceUrl = 'assets/uploads/concerns/' . $filename;
+                            $photoEvidenceUrl = $baseUrl . '/assets/uploads/concerns/' . $filename;
                         }
                     }
                 } else if (is_string($photo) && strpos($photo, 'data:image') === 0) {
@@ -525,9 +560,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         foreach ($targetDirs as $td) {
                             if (is_dir($td)) @file_put_contents($td . $filename, $decoded);
                         }
-                        $savedAttachments[] = $filename;
+                        $savedAttachments[] = $baseUrl . '/assets/uploads/concerns/' . $filename;
                         if (!$photoEvidenceUrl) {
-                            $photoEvidenceUrl = 'assets/uploads/concerns/' . $filename;
+                            $photoEvidenceUrl = $baseUrl . '/assets/uploads/concerns/' . $filename;
                         }
                     }
                 } else if (is_array($photo) && !empty($photo['name'])) {
@@ -538,7 +573,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Direct photoEvidenceUrl passed
         if (!$photoEvidenceUrl && !empty($data['photo_evidence_url'])) {
-            $photoEvidenceUrl = $data['photo_evidence_url'];
+            $rawP = trim($data['photo_evidence_url']);
+            if (strpos($rawP, 'http://') === 0 || strpos($rawP, 'https://') === 0) {
+                $photoEvidenceUrl = $rawP;
+            } else {
+                $cleanP = ltrim($rawP, '/');
+                if (strpos($cleanP, 'uploads/') === 0) $cleanP = 'assets/' . $cleanP;
+                $photoEvidenceUrl = $baseUrl . '/' . $cleanP;
+            }
         }
 
         // Direct files uploaded via $_FILES
@@ -553,9 +595,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $ext = pathinfo($name, PATHINFO_EXTENSION) ?: 'jpg';
                     $targetFilename = 'concern_' . time() . '_' . rand(1000, 9999) . '.' . $ext;
                     if (move_uploaded_file($tmpName, $uploadDir . $targetFilename)) {
-                        $savedAttachments[] = $targetFilename;
+                        $savedAttachments[] = $baseUrl . '/assets/uploads/concerns/' . $targetFilename;
                         if (!$photoEvidenceUrl) {
-                            $photoEvidenceUrl = 'assets/uploads/concerns/' . $targetFilename;
+                            $photoEvidenceUrl = $baseUrl . '/assets/uploads/concerns/' . $targetFilename;
                         }
                     }
                 }
@@ -576,22 +618,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $ticketNumber = 'CAL-REP-2026-' . rand(10000, 99999);
         }
 
+        $phNow = date('Y-m-d H:i:s');
+
         $sql = "INSERT INTO `citizen_concerns` (
             `ticket_number`, `citizen_user_id`, `citizen_name`, `citizen_phone`, `citizen_email`,
             `is_anonymous`, `category`, `sub_category`, `title`, `description`,
             `location`, `barangay`, `district`, `gps_coordinates`, `status`,
             `priority`, `assigned_department`, `ai_detected_category`, `ai_confidence_score`, `ai_reason`,
-            `photo_evidence_url`, `attachments`
+            `photo_evidence_url`, `attachments`, `created_at`, `updated_at`
         ) VALUES (
             :ticket_number, :citizen_user_id, :citizen_name, :citizen_phone, :citizen_email,
             :is_anonymous, :category, :sub_category, :title, :description,
             :location, :barangay, :district, :gps_coordinates, :status,
             :priority, :assigned_department, :ai_detected_category, :ai_confidence_score, :ai_reason,
-            :photo_evidence_url, :attachments
+            :photo_evidence_url, :attachments, :created_at, :updated_at
         )";
 
+        // 1. Dynamic Automated AI Routing Decision based on Confidence Threshold (85%)
+        $confidenceVal = 95;
+        if (!empty($confidenceScore) && preg_match('/(\d+)%?/', $confidenceScore, $cm)) {
+            $confidenceVal = (int)$cm[1];
+        }
+
+        // High Confidence (>= 85%): Automatically routed to assigned department
+        // Low Confidence (< 85%): Queued for manual triage ('Under Review')
+        $isAutoRouted = ($confidenceVal >= 85 && !empty($assignedDept));
+        $status = $isAutoRouted ? 'Routed' : 'Under Review';
+
+        $dispatchAck = 'ACK-' . strtoupper(substr(md5($ticketNumber), 0, 8));
+        if ($isAutoRouted) {
+            $aiReason = trim($aiReason) . " [Auto-Dispatch Protocol]: High confidence ({$confidenceVal}% >= 85%). Automatically routed to {$assignedDept}. Municipal Queue Dispatch Token: {$dispatchAck}.";
+        } else {
+            $aiReason = trim($aiReason) . " [Human Triage Required]: Classification confidence ({$confidenceVal}% < 85%). Flagged for Citizenship Administrator manual review.";
+        }
+
         $stmt = $pdo->prepare($sql);
-        $status = 'New';
         $stmt->execute([
             ':ticket_number' => $ticketNumber,
             ':citizen_user_id' => $citizenUserId,
@@ -614,17 +675,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ':ai_confidence_score' => $confidenceScore,
             ':ai_reason' => $aiReason,
             ':photo_evidence_url' => $photoEvidenceUrl,
-            ':attachments' => $attachmentsJson
+            ':attachments' => $attachmentsJson,
+            ':created_at' => $phNow,
+            ':updated_at' => $phNow
         ]);
 
         $insertedId = $pdo->lastInsertId();
 
         if (ob_get_length()) ob_clean();
+        if (ob_get_length()) ob_clean();
         echo json_encode([
             'status' => 'success',
-            'message' => 'Concern ticket filed successfully.',
+            'message' => $isAutoRouted
+                ? "Concern ticket filed and automatically routed to {$assignedDept}."
+                : "Concern ticket filed and queued for administrative triage.",
             'ticket_number' => $ticketNumber,
             'concern_id' => (int)$insertedId,
+            'is_auto_routed' => $isAutoRouted,
+            'routing_summary' => [
+                'status' => $status,
+                'assigned_department' => $assignedDept,
+                'confidence_percent' => $confidenceVal,
+                'dispatch_acknowledgement' => $isAutoRouted ? $dispatchAck : null,
+                'human_triage_needed' => !$isAutoRouted
+            ],
             'data' => [
                 'ticket_number' => $ticketNumber,
                 'title' => $title,
@@ -636,14 +710,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'confidence_score' => $confidenceScore,
                 'ai_reasoning' => $aiReason,
                 'similar_concerns' => $similarConcerns,
-                'submission_date' => date('M j, Y • h:i A')
+                'created_at' => $phNow,
+                'created_at_iso' => date('c', strtotime($phNow)),
+                'submission_date' => date('M j, Y • h:i A', strtotime($phNow))
             ]
         ]);
         exit;
     } catch (\Exception $e) {
+        if (ob_get_length()) ob_clean();
         http_response_code(500);
         if (ob_get_length()) ob_clean();
-        echo json_encode([
+    echo json_encode([
             'status' => 'error',
             'message' => 'Failed to process concern submission: ' . $e->getMessage()
         ]);

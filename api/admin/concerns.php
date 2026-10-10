@@ -1,4 +1,7 @@
 <?php
+// Enforce official Philippine Standard Time (PST, UTC+8)
+date_default_timezone_set('Asia/Manila');
+
 // Prevent session lock issues
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -98,6 +101,7 @@ function getDbConnection() {
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
             ]);
 
+            $pdo->exec("SET time_zone = '+08:00'");
             $pdo->exec("USE `{$dbName}`;");
             return ['pdo' => $pdo, 'target' => $cand['desc']];
         } catch (\Exception $e) {

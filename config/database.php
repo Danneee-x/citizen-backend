@@ -1,4 +1,7 @@
 <?php
+// Enforce official Philippine Standard Time (PST, UTC+8) globally
+date_default_timezone_set('Asia/Manila');
+
 // Function to load .env file into getenv/$_ENV
 if (!function_exists('loadEnv')) {
     function loadEnv($path) {
@@ -104,6 +107,8 @@ function getDbConnection(): PDO {
 
         try {
             $pdo = new PDO($dsn, $cand['user'], $cand['pass'], $options);
+            $pdo->exec("SET time_zone = '+08:00'");
+            $pdo->exec("SET SESSION sql_mode = 'NO_ENGINE_SUBSTITUTION'");
             return $pdo;
         } catch (PDOException $e) {
             $lastError = $e->getMessage();
@@ -114,6 +119,8 @@ function getDbConnection(): PDO {
                     $tmpPdo = new PDO($noDbDsn, $cand['user'], $cand['pass'], $options);
                     $tmpPdo->exec("CREATE DATABASE IF NOT EXISTS `{$db}` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;");
                     $pdo = new PDO($dsn, $cand['user'], $cand['pass'], $options);
+                    $pdo->exec("SET time_zone = '+08:00'");
+                    $pdo->exec("SET SESSION sql_mode = 'NO_ENGINE_SUBSTITUTION'");
                     return $pdo;
                 } catch (PDOException $e2) {
                     $lastError = $e2->getMessage();
@@ -163,6 +170,7 @@ function getCertificateDbConnection(): PDO {
         try {
             $dsn = "mysql:host={$cand['host']};port={$cand['port']};dbname={$db};charset=utf8mb4";
             $certPdo = new PDO($dsn, $cand['user'], $cand['pass'], $options);
+            $certPdo->exec("SET time_zone = '+08:00'");
             return $certPdo;
         } catch (PDOException $e) {
             $lastError = $e->getMessage();
@@ -172,6 +180,7 @@ function getCertificateDbConnection(): PDO {
                     $tmpPdo = new PDO($noDbDsn, $cand['user'], $cand['pass'], $options);
                     $tmpPdo->exec("CREATE DATABASE IF NOT EXISTS `{$db}` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;");
                     $certPdo = new PDO($dsn, $cand['user'], $cand['pass'], $options);
+                    $certPdo->exec("SET time_zone = '+08:00'");
                     return $certPdo;
                 } catch (PDOException $e2) {
                     $lastError = $e2->getMessage();

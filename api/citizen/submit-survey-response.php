@@ -1,4 +1,7 @@
 <?php
+// Enforce official Philippine Standard Time (PST, UTC+8)
+date_default_timezone_set('Asia/Manila');
+
 // Suppress warnings / notices from polluting JSON API output
 error_reporting(0);
 ini_set('display_errors', '0');
@@ -63,8 +66,9 @@ try {
     $ins = $pdo->prepare("
         INSERT INTO `survey_responses` 
         (`survey_id`, `citizen_id`, `citizen_name`, `barangay`, `age_group`, `gender`, `answers_json`, `overall_rating`, `commentary`, `submitted_at`)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ");
+    $currentPst = date('Y-m-d H:i:s');
     $ins->execute([
         $surveyId,
         $citizenId,
@@ -74,7 +78,8 @@ try {
         $gender,
         json_encode($answers),
         $overallRating,
-        $commentary
+        $commentary,
+        $currentPst
     ]);
 
     echo json_encode([
